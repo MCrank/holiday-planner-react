@@ -1,26 +1,83 @@
-import React, { Component } from 'react';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import { Button } from 'reactstrap';
-import logo from './logo.svg';
-import './App.css';
+import React from 'react';
+import firebase from 'firebase/app';
+import 'firebase/auth';
+import {
+  BrowserRouter, Route, Redirect, Switch,
+} from 'react-router-dom';
 
-class App extends Component {
+import connection from '../helpers/data/connection';
+import AppNavbar from '../components/AppNavbar/AppNavbar';
+import Auth from '../components/pages/Auth/Auth';
+
+import './App.scss';
+import authRequests from '../helpers/data/authRequests';
+
+const PublicRoute = ({ component: Component, authed, ...rest }) => {
+  // props contains Location, Match, and History
+  const routeChecker = props => (authed === false ? <Component {...props} /> : <Redirect to={{ pathname: '/home', state: { from: props.location } }} />);
+  return <Route {...rest} render={props => routeChecker(props)} />;
+};
+
+const PrivateRoute = ({ component: Component, authed, ...rest }) => {
+  const routeChecker = props => (authed === false ? <Component {...props} /> : <Redirect to={{ pathname: '/auth', state: { from: props.location } }} />);
+  return <Route {...rest} render={props => routeChecker(props)} />;
+};
+class App extends React.Component {
+  state = {
+    authed: false,
+    pendingUser: true,
+  };
+
+  componentDidMount() {
+    connection();
+
+    this.removeListener = firebase.auth().onAuthStateChanged((user) => {
+      if (user) {
+        this.setState({
+          authed: true,
+          pendingUser: false,
+        });
+      } else {
+        this.setState({
+          authed: false,
+          pendingUser: false,
+        });
+      }
+    });
+  }
+
+  componentWillUnmount() {
+    this.removeListener();
+  }
+
   render() {
+    const { authed, pendingUser } = this.state;
+    const logoutCLickEvent = () => {
+      authRequests.logoutUser();
+      this.setState({
+        authed: false,
+      });
+    };
+
+    if (pendingUser) {
+      return null;
+    }
+
     return (
       <div className="App">
-        <header className="App-header">
-          <button className="btn btn-primary">Help Me</button>
-          <img src={logo} className="App-logo" alt="logo" />
-          <p>
-            Edit <code>src/App.js</code> and save to reload.
-          </p>
-          <a className="App-link" href="https://reactjs.org" target="_blank" rel="noopener noreferrer">
-            Learn React
-          </a>
-          <Button tag="a" color="success" size="large" href="http://reactstrap.github.io" target="_blank">
-            View Reactstrap Docs
-          </Button>
-        </header>
+        <BrowserRouter>
+          <React.Fragment>
+            <AppNavbar isAuthed={authed} logoutCLickEvent={logoutCLickEvent} />
+            <div className="container">
+              <div className="row justify-content-center">
+                <Switch>
+                  <PublicRoute path="/auth" component={Auth} authed={authed} />
+                  {/* <PrivateRoute path="/" exact component={Home} authed={authed} /> */}
+                </Switch>
+              </div>
+            </div>
+          </React.Fragment>
+        </BrowserRouter>
       </div>
     );
   }
